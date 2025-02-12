@@ -86,21 +86,13 @@ async function run(): Promise<void> {
         )
       }
       const annotations = report.annotations.slice(0, 50)
-      let output
-      if (reportDetail.trim()) {
-        output = {
-          title: 'Xcode test results',
-          summary: reportSummary,
-          text: reportDetail,
-          annotations
-        }
-      } else {
-        output = {
-          title: 'Xcode test results',
-          summary: reportSummary,
-          annotations
-        }
+      let output = {
+        title: 'Xcode test results',
+        summary: reportSummary,
+        text: reportDetail.trim() ? reportDetail : undefined,
+        annotations
       }
+
       await octokit.checks.create({
         owner,
         repo,
@@ -123,19 +115,24 @@ async function run(): Promise<void> {
           }
 
           const artifactClient = new artifact.DefaultArtifactClient()
-          const artifactName = path.basename(uploadBundlePath)
+          const bundleName = path.basename(uploadBundlePath)
+
+          const artifactName = `${title} (${bundleName})`
+          core.info(`Creating artifact ${artifactName}`)
 
           const rootDirectory = uploadBundlePath
-         
+
           glob(`${uploadBundlePath}/**/*`, async (error, files) => {
             if (error) {
               core.error(error)
             }
             if (files.length) {
+              core.info(`Uploading artifact ${artifactName}`)
               await artifactClient.uploadArtifact(
                 artifactName,
                 files,
-                rootDirectory)
+                rootDirectory
+              )
             }
           })
         }
@@ -155,8 +152,9 @@ async function mergeResultBundle(
   const args = ['xcresulttool', 'merge']
     .concat(inputPaths)
     .concat(['--output-path', outputPath])
+
   const options = {
-    silent: true
+    silent: !core.isDebug()
   }
 
   await exec.exec('xcrun', args, options)
